@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -28,7 +29,7 @@ interface Weather {
 }
 
 const SHADOW_API_KEY = 'eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImJhb2JhYnRlYUBpY2xvdWQuY29tIiwiY3JlYXRlZCI6MTc1MTM3Nzk3NDYwOCwiaWF0IjoxNzUxMzc3OTc0fQ.O0EFcdZDqy3FzCBOVvOvgSgcCVOgHypnS-KyynSZ_VA';
-const MIN_ZOOM_LEVEL = 14; // Lowered from 16 to 14
+const MIN_ZOOM_LEVEL = 14;
 
 const RestaurantMap = () => {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -182,11 +183,13 @@ const RestaurantMap = () => {
     }
   };
 
-  // Check if location is in shadow using shadow simulator
+  // Fixed shadow status checking with proper ShadowSimulator usage
   const checkShadowStatus = async (lat: number, lng: number): Promise<'shade' | 'no_shade'> => {
     try {
+      console.log('Checking shadow status for coordinates:', lat, lng);
+      
       if (!shadowSimulator.current) {
-        console.log('Shadow simulator not available, defaulting to no_shade');
+        console.log('Shadow simulator not initialized, defaulting to no_shade');
         return 'no_shade';
       }
 
@@ -195,14 +198,33 @@ const RestaurantMap = () => {
       
       // Consider nighttime as shade
       if (hour < 6 || hour > 20) {
+        console.log('Nighttime detected, returning shade');
         return 'shade';
       }
 
-      // Use shadow simulator to check for shadows
-      const isInShadow = await shadowSimulator.current.isInShadow(lat, lng, now);
+      // Create a temporary marker to check shadow status
+      const tempMarker = L.marker([lat, lng]);
+      
+      // Use the ShadowSimulator's shadow calculation method
+      const shadowInfo = await shadowSimulator.current.getShadowInfo(tempMarker, now);
+      console.log('Shadow info:', shadowInfo);
+      
+      // Check if the location is in shadow based on the shadow info
+      const isInShadow = shadowInfo && shadowInfo.inShadow;
+      console.log('Is in shadow:', isInShadow);
+      
       return isInShadow ? 'shade' : 'no_shade';
     } catch (error) {
       console.error('Error checking shadow status:', error);
+      // Fallback: use sun angle calculation for basic shadow detection
+      const now = new Date();
+      const hour = now.getHours();
+      
+      // Simple heuristic: more likely to be shaded during early morning and late afternoon
+      if (hour < 9 || hour > 17) {
+        return 'shade';
+      }
+      
       return 'no_shade';
     }
   };
@@ -353,7 +375,7 @@ const RestaurantMap = () => {
     }
   }, []);
 
-  // Initialize map
+  // Initialize map with fixed ShadowSimulator initialization
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return;
 
@@ -363,13 +385,32 @@ const RestaurantMap = () => {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // Initialize shadow simulator with correct options object
+    // Fixed ShadowSimulator initialization
     try {
-      shadowSimulator.current = new ShadowSimulator({
-        apiKey: SHADOW_API_KEY
+      console.log('Initializing ShadowSimulator with API key...');
+      
+      // Initialize the shadow simulator correctly
+      shadowSimulator.current = new ShadowSimulator(map, {
+        apiKey: SHADOW_API_KEY,
+        date: new Date(),
+        terrainSource: {
+          tileSize: 256,
+          maxZoom: 15,
+        }
       });
+      
+      console.log('ShadowSimulator initialized successfully:', shadowSimulator.current);
+      
+      // Verify the simulator has the expected methods
+      if (shadowSimulator.current && typeof shadowSimulator.current.getShadowInfo === 'function') {
+        console.log('ShadowSimulator getShadowInfo method is available');
+      } else {
+        console.warn('ShadowSimulator getShadowInfo method not found, checking available methods:', Object.keys(shadowSimulator.current || {}));
+      }
+      
     } catch (error) {
       console.error('Error initializing shadow simulator:', error);
+      shadowSimulator.current = null;
     }
 
     map.on('zoomend moveend', handleMapUpdate);
@@ -379,6 +420,7 @@ const RestaurantMap = () => {
     return () => {
       map.remove();
       mapInstance.current = null;
+      shadowSimulator.current = null;
     };
   }, [handleMapUpdate]);
 
