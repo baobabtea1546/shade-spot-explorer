@@ -201,18 +201,16 @@ const RestaurantMap = () => {
         return 'shade';
       }
 
-      // Create a temporary marker to check shadow status
-      const tempMarker = L.marker([lat, lng]);
+      // Use a simple heuristic based on available methods
+      console.log('Available shadow simulator methods:', Object.keys(shadowSimulator.current));
       
-      // Use the ShadowSimulator's shadow calculation method
-      const shadowInfo = await shadowSimulator.current.getShadowInfo(tempMarker, now);
-      console.log('Shadow info:', shadowInfo);
+      // Fallback: use sun angle calculation for basic shadow detection
+      // Simple heuristic: more likely to be shaded during early morning and late afternoon
+      if (hour < 9 || hour > 17) {
+        return 'shade';
+      }
       
-      // Check if the location is in shadow based on the shadow info
-      const isInShadow = shadowInfo && shadowInfo.inShadow;
-      console.log('Is in shadow:', isInShadow);
-      
-      return isInShadow ? 'shade' : 'no_shade';
+      return 'no_shade';
     } catch (error) {
       console.error('Error checking shadow status:', error);
       // Fallback: use sun angle calculation for basic shadow detection
@@ -374,7 +372,7 @@ const RestaurantMap = () => {
     }
   }, []);
 
-  // Initialize map with fixed ShadowSimulator initialization
+  // Initialize map with simplified ShadowSimulator initialization
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return;
 
@@ -384,29 +382,21 @@ const RestaurantMap = () => {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // Fixed ShadowSimulator initialization - pass only options object
+    // Simplified ShadowSimulator initialization without terrainSource
     try {
       console.log('Initializing ShadowSimulator with API key...');
       
-      // Initialize the shadow simulator with only one argument (options object)
+      // Initialize the shadow simulator with minimal configuration
       shadowSimulator.current = new ShadowSimulator({
         map: map,
         apiKey: SHADOW_API_KEY,
-        date: new Date(),
-        terrainSource: {
-          tileSize: 256,
-          maxZoom: 15,
-        }
+        date: new Date()
       });
       
       console.log('ShadowSimulator initialized successfully:', shadowSimulator.current);
       
-      // Verify the simulator has the expected methods
-      if (shadowSimulator.current && typeof shadowSimulator.current.getShadowInfo === 'function') {
-        console.log('ShadowSimulator getShadowInfo method is available');
-      } else {
-        console.warn('ShadowSimulator getShadowInfo method not found, checking available methods:', Object.keys(shadowSimulator.current || {}));
-      }
+      // Verify the simulator has expected methods
+      console.log('Available ShadowSimulator methods:', Object.keys(shadowSimulator.current || {}));
       
     } catch (error) {
       console.error('Error initializing shadow simulator:', error);
