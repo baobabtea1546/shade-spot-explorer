@@ -1,8 +1,7 @@
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { ShadowSimulator } from 'leaflet-shadow-simulator';
+import ShadowSimulator from 'leaflet-shadow-simulator';
 import { toast } from 'sonner';
 
 // Fix for default markers in Leaflet
