@@ -372,7 +372,7 @@ const RestaurantMap = () => {
     }
   }, []);
 
-  // Initialize map with simplified ShadowSimulator initialization
+  // Initialize map with corrected ShadowSimulator initialization
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return;
 
@@ -382,13 +382,12 @@ const RestaurantMap = () => {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // Simplified ShadowSimulator initialization without terrainSource
+    // Corrected ShadowSimulator initialization - remove invalid 'map' property
     try {
       console.log('Initializing ShadowSimulator with API key...');
       
-      // Initialize the shadow simulator with minimal configuration
+      // Initialize the shadow simulator with only valid properties
       shadowSimulator.current = new ShadowSimulator({
-        map: map,
         apiKey: SHADOW_API_KEY,
         date: new Date()
       });
