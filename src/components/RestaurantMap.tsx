@@ -322,9 +322,11 @@ const RestaurantMap = () => {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // Initialize shadow simulator
+    // Initialize shadow simulator with correct options object
     try {
-      shadowSimulator.current = new ShadowSimulator(SHADOW_API_KEY);
+      shadowSimulator.current = new ShadowSimulator({
+        apiKey: SHADOW_API_KEY
+      });
     } catch (error) {
       console.error('Error initializing shadow simulator:', error);
     }
