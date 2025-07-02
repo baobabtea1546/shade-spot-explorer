@@ -1,12 +1,14 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import RestaurantMap from '@/components/RestaurantMap';
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <div className="min-h-screen bg-background">
+      <div className="absolute top-4 left-4 z-[1000] bg-white bg-opacity-90 px-4 py-2 rounded-lg shadow-lg">
+        <h1 className="text-xl font-bold text-gray-800">Sunny Spots Finder</h1>
+        <p className="text-sm text-gray-600">Find restaurants with sunny terraces</p>
       </div>
+      <RestaurantMap />
     </div>
   );
 };
