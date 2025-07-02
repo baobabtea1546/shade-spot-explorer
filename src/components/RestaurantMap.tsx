@@ -69,6 +69,8 @@ const RestaurantMap = () => {
 
   // Fetch restaurants from Overpass API
   const fetchRestaurants = async (bounds: L.LatLngBounds) => {
+    console.log('Fetching restaurants for bounds:', bounds.toBBoxString());
+    
     const query = `
       [out:json][timeout:25];
       (
@@ -78,21 +80,29 @@ const RestaurantMap = () => {
     `;
 
     try {
+      console.log('Sending Overpass query...');
       const response = await fetch('https://overpass-api.de/api/interpreter', {
         method: 'POST',
         body: query,
       });
 
-      if (!response.ok) throw new Error('Failed to fetch restaurants');
+      if (!response.ok) {
+        console.error('Overpass API response not ok:', response.status, response.statusText);
+        throw new Error('Failed to fetch restaurants');
+      }
       
       const data = await response.json();
+      console.log('Overpass API response:', data);
       
-      return data.elements.map((element: any) => ({
+      const restaurants = data.elements.map((element: any) => ({
         id: element.id.toString(),
         lat: element.lat,
         lng: element.lon,
         name: element.tags?.name || 'Unknown Restaurant'
       }));
+      
+      console.log(`Found ${restaurants.length} restaurants`);
+      return restaurants;
     } catch (error) {
       console.error('Error fetching restaurants:', error);
       toast.error('Failed to fetch restaurants');
@@ -173,6 +183,7 @@ const RestaurantMap = () => {
   const checkShadowStatus = async (lat: number, lng: number): Promise<'shade' | 'no_shade'> => {
     try {
       if (!shadowSimulator.current) {
+        console.log('Shadow simulator not available, defaulting to no_shade');
         return 'no_shade';
       }
 
@@ -195,11 +206,17 @@ const RestaurantMap = () => {
 
   // Process restaurants with all calculations
   const processRestaurants = async (restaurantData: any[]) => {
+    console.log(`Processing ${restaurantData.length} restaurants...`);
     setIsLoading(true);
     const processedRestaurants: Restaurant[] = [];
 
-    for (const restaurant of restaurantData) {
+    // Process only first 5 restaurants to avoid overwhelming the APIs
+    const restaurantsToProcess = restaurantData.slice(0, 5);
+
+    for (const restaurant of restaurantsToProcess) {
       try {
+        console.log(`Processing restaurant: ${restaurant.name}`);
+        
         // Step 2: Find nearest road and calculate terrace coordinates
         const nearestRoad = await findNearestRoad(restaurant.lat, restaurant.lng);
         const bearing = calculateBearing(restaurant.lat, restaurant.lng, nearestRoad.lat, nearestRoad.lng);
@@ -223,10 +240,13 @@ const RestaurantMap = () => {
           sunnyStatus
         });
 
+        console.log(`Processed restaurant: ${restaurant.name}, status: ${sunnyStatus}`);
+
         // Add small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 200));
       } catch (error) {
         console.error(`Error processing restaurant ${restaurant.name}:`, error);
+        // Still add the restaurant with default values
         processedRestaurants.push({
           ...restaurant,
           terraceCoords: { lat: restaurant.lat, lng: restaurant.lng },
@@ -237,6 +257,7 @@ const RestaurantMap = () => {
       }
     }
 
+    console.log(`Finished processing restaurants. Total: ${processedRestaurants.length}`);
     setRestaurants(processedRestaurants);
     setIsLoading(false);
   };
@@ -245,13 +266,18 @@ const RestaurantMap = () => {
   const updateMarkers = useCallback(() => {
     if (!mapInstance.current) return;
 
+    console.log(`Updating markers for ${restaurants.length} restaurants, zoom: ${currentZoom}`);
+
     // Clear existing markers
     restaurantMarkers.current.forEach(marker => mapInstance.current?.removeLayer(marker));
     terraceMarkers.current.forEach(marker => mapInstance.current?.removeLayer(marker));
     restaurantMarkers.current = [];
     terraceMarkers.current = [];
 
-    if (currentZoom < 16) return;
+    if (currentZoom < 16) {
+      console.log('Zoom level too low, not showing markers');
+      return;
+    }
 
     // Add restaurant markers
     restaurants.forEach(restaurant => {
@@ -275,6 +301,7 @@ const RestaurantMap = () => {
 
       restaurantMarker.addTo(mapInstance.current!);
       restaurantMarkers.current.push(restaurantMarker);
+      console.log(`Added marker for ${restaurant.name}`);
 
       // Add terrace marker
       if (restaurant.terraceCoords) {
@@ -298,16 +325,22 @@ const RestaurantMap = () => {
     if (!mapInstance.current) return;
 
     const zoom = mapInstance.current.getZoom();
+    console.log(`Map update: zoom=${zoom}`);
     setCurrentZoom(zoom);
 
     if (zoom >= 16) {
       const bounds = mapInstance.current.getBounds();
+      console.log(`Fetching restaurants for zoom level ${zoom}`);
       const restaurantData = await fetchRestaurants(bounds);
       
       if (restaurantData.length > 0) {
         await processRestaurants(restaurantData);
+      } else {
+        console.log('No restaurants found in current bounds');
+        toast.info('No restaurants found in current area');
       }
     } else {
+      console.log('Zoom level too low, clearing restaurants');
       setRestaurants([]);
     }
   }, []);
@@ -354,7 +387,7 @@ const RestaurantMap = () => {
       {currentZoom < 16 && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white bg-opacity-90 px-6 py-4 rounded-lg shadow-lg border-2 border-yellow-400">
           <p className="text-center text-gray-800 font-medium">
-            Zoom in more to see sunny spots
+            Zoom in more to see sunny spots (current zoom: {currentZoom.toFixed(1)})
           </p>
         </div>
       )}
@@ -363,6 +396,15 @@ const RestaurantMap = () => {
       {isLoading && (
         <div className="absolute top-4 right-4 bg-white bg-opacity-90 px-4 py-2 rounded-lg shadow-lg">
           <p className="text-sm text-gray-600">Calculating sunny spots...</p>
+        </div>
+      )}
+
+      {/* Restaurant count indicator */}
+      {currentZoom >= 16 && (
+        <div className="absolute top-4 right-4 bg-white bg-opacity-90 px-4 py-2 rounded-lg shadow-lg">
+          <p className="text-sm text-gray-600">
+            {restaurants.length} restaurants found
+          </p>
         </div>
       )}
 
