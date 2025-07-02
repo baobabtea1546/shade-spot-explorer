@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -385,12 +384,13 @@ const RestaurantMap = () => {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // Fixed ShadowSimulator initialization
+    // Fixed ShadowSimulator initialization - pass only options object
     try {
       console.log('Initializing ShadowSimulator with API key...');
       
-      // Initialize the shadow simulator correctly
-      shadowSimulator.current = new ShadowSimulator(map, {
+      // Initialize the shadow simulator with only one argument (options object)
+      shadowSimulator.current = new ShadowSimulator({
+        map: map,
         apiKey: SHADOW_API_KEY,
         date: new Date(),
         terrainSource: {
