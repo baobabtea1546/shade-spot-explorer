@@ -28,6 +28,7 @@ interface Weather {
 }
 
 const SHADOW_API_KEY = 'eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImJhb2JhYnRlYUBpY2xvdWQuY29tIiwiY3JlYXRlZCI6MTc1MTM3Nzk3NDYwOCwiaWF0IjoxNzUxMzc3OTc0fQ.O0EFcdZDqy3FzCBOVvOvgSgcCVOgHypnS-KyynSZ_VA';
+const MIN_ZOOM_LEVEL = 14; // Lowered from 16 to 14
 
 const RestaurantMap = () => {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -36,6 +37,8 @@ const RestaurantMap = () => {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [currentZoom, setCurrentZoom] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
+  const [processedCount, setProcessedCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const restaurantMarkers = useRef<L.CircleMarker[]>([]);
   const terraceMarkers = useRef<L.CircleMarker[]>([]);
 
@@ -204,18 +207,20 @@ const RestaurantMap = () => {
     }
   };
 
-  // Process restaurants with all calculations
+  // Process restaurants with all calculations - REMOVED RATE LIMIT
   const processRestaurants = async (restaurantData: any[]) => {
     console.log(`Processing ${restaurantData.length} restaurants...`);
     setIsLoading(true);
+    setProcessedCount(0);
+    setTotalCount(restaurantData.length);
     const processedRestaurants: Restaurant[] = [];
 
-    // Process only first 5 restaurants to avoid overwhelming the APIs
-    const restaurantsToProcess = restaurantData.slice(0, 5);
-
-    for (const restaurant of restaurantsToProcess) {
+    // Process ALL restaurants instead of limiting to 5
+    for (let i = 0; i < restaurantData.length; i++) {
+      const restaurant = restaurantData[i];
       try {
-        console.log(`Processing restaurant: ${restaurant.name}`);
+        console.log(`Processing restaurant ${i + 1}/${restaurantData.length}: ${restaurant.name}`);
+        setProcessedCount(i + 1);
         
         // Step 2: Find nearest road and calculate terrace coordinates
         const nearestRoad = await findNearestRoad(restaurant.lat, restaurant.lng);
@@ -254,12 +259,15 @@ const RestaurantMap = () => {
           cloudStatus: 'not_cloudy',
           sunnyStatus: 'not_sunny'
         });
+        setProcessedCount(i + 1);
       }
     }
 
     console.log(`Finished processing restaurants. Total: ${processedRestaurants.length}`);
     setRestaurants(processedRestaurants);
     setIsLoading(false);
+    setProcessedCount(0);
+    setTotalCount(0);
   };
 
   // Update markers on the map
@@ -274,7 +282,7 @@ const RestaurantMap = () => {
     restaurantMarkers.current = [];
     terraceMarkers.current = [];
 
-    if (currentZoom < 16) {
+    if (currentZoom < MIN_ZOOM_LEVEL) {
       console.log('Zoom level too low, not showing markers');
       return;
     }
@@ -328,7 +336,7 @@ const RestaurantMap = () => {
     console.log(`Map update: zoom=${zoom}`);
     setCurrentZoom(zoom);
 
-    if (zoom >= 16) {
+    if (zoom >= MIN_ZOOM_LEVEL) {
       const bounds = mapInstance.current.getBounds();
       console.log(`Fetching restaurants for zoom level ${zoom}`);
       const restaurantData = await fetchRestaurants(bounds);
@@ -383,33 +391,51 @@ const RestaurantMap = () => {
     <div className="relative w-full h-screen">
       <div ref={mapRef} className="w-full h-full" />
       
-      {/* Zoom message overlay */}
-      {currentZoom < 16 && (
+      {/* Zoom message overlay - Updated threshold */}
+      {currentZoom < MIN_ZOOM_LEVEL && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white bg-opacity-90 px-6 py-4 rounded-lg shadow-lg border-2 border-yellow-400">
           <p className="text-center text-gray-800 font-medium">
-            Zoom in more to see sunny spots (current zoom: {currentZoom.toFixed(1)})
+            Zoom in more to see sunny spots (current zoom: {currentZoom.toFixed(1)}, need: {MIN_ZOOM_LEVEL}+)
           </p>
         </div>
       )}
 
-      {/* Loading overlay */}
+      {/* Enhanced loading overlay with progress */}
       {isLoading && (
-        <div className="absolute top-4 right-4 bg-white bg-opacity-90 px-4 py-2 rounded-lg shadow-lg">
-          <p className="text-sm text-gray-600">Calculating sunny spots...</p>
+        <div className="absolute top-4 right-4 bg-white bg-opacity-90 px-4 py-3 rounded-lg shadow-lg min-w-[200px]">
+          <p className="text-sm text-gray-600 mb-2">Calculating sunny spots...</p>
+          {totalCount > 0 && (
+            <div className="space-y-1">
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                  style={{ width: `${(processedCount / totalCount) * 100}%` }}
+                ></div>
+              </div>
+              <p className="text-xs text-gray-500">
+                {processedCount} / {totalCount} restaurants processed
+              </p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Restaurant count indicator */}
-      {currentZoom >= 16 && (
+      {/* Restaurant count indicator - Updated threshold */}
+      {currentZoom >= MIN_ZOOM_LEVEL && !isLoading && (
         <div className="absolute top-4 right-4 bg-white bg-opacity-90 px-4 py-2 rounded-lg shadow-lg">
           <p className="text-sm text-gray-600">
             {restaurants.length} restaurants found
+            {restaurants.length > 0 && (
+              <span className="block text-xs text-green-600">
+                {restaurants.filter(r => r.sunnyStatus === 'sunny').length} sunny spots
+              </span>
+            )}
           </p>
         </div>
       )}
 
-      {/* Legend */}
-      {currentZoom >= 16 && (
+      {/* Legend - Updated threshold */}
+      {currentZoom >= MIN_ZOOM_LEVEL && (
         <div className="absolute bottom-4 left-4 bg-white bg-opacity-90 p-4 rounded-lg shadow-lg">
           <h3 className="font-semibold mb-2">Legend</h3>
           <div className="space-y-2">
